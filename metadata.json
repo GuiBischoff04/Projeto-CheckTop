@@ -1,0 +1,5 @@
+{
+  "name": "CheckTop",
+  "description": "Um aplicativo interativo para criar e gerenciar checklists, com um dashboard que se atualiza em tempo real para monitorar conformidades e não conformidades, enriquecido com sugestões de ações corretivas geradas por IA.",
+  "requestFramePermissions": []
+}
