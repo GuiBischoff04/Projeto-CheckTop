@@ -1,60 +1,44 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
- * Obtém a chave de API de forma segura.
- * Em ambientes de frontend puros ou previews, 'process' pode não estar definido.
- * Esta abordagem evita o erro 'ReferenceError: process is not defined' que causa a tela branca.
+ * Obtém a chave de API das variáveis de ambiente do Vite.
+ * O prefixo VITE_ é obrigatório para que a Vercel exponha a chave ao navegador.
  */
 const getApiKey = (): string => {
-  try {
-    // Tenta obter do process.env (injetado pelo Vercel ou shims de ambiente)
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      return process.env.API_KEY;
-    }
-  } catch (e) {
-    // Silenciosamente ignora se o process não existir
-  }
-  
-  // Tenta obter do import.meta.env (Padrão Vite/Vercel moderno)
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) {
-    // Silenciosamente ignora se import.meta não for suportado
-  }
-
-  return "";
+  return (import.meta.env.VITE_API_KEY as string) || "";
 };
 
 /**
- * Sugere ações corretivas com base no item não conforme.
- * @param checklistTitle Título do checklist
- * @param itemText Texto do item que apresentou falha
+ * Gera sugestões de ações corretivas usando o modelo Gemini.
  */
-export const getCorrectiveActionSuggestion = async (checklistTitle: string, itemText: string): Promise<string> => {
+export const getCorrectiveActionSuggestion = async (
+  checklistTitle: string, 
+  itemText: string
+): Promise<string> => {
+  
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    console.error("VITE_API_KEY ou API_KEY não encontrada nas variáveis de ambiente.");
-    return "Erro de configuração: Chave de API não encontrada. Certifique-se de adicioná-la no painel do Vercel como VITE_API_KEY.";
+    console.error("ERRO: VITE_API_KEY não encontrada no ambiente.");
+    return "Erro de configuração: Chave de API não encontrada na Vercel.";
   }
 
-  // Inicializa a instância da API dentro da função ou sob demanda para garantir que a chave esteja carregada
-  const ai = new GoogleGenAI({ apiKey });
+  // Inicializa o SDK oficial da Google
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // Utilizamos o modelo 1.5-flash por ser rápido e eficiente para sugestões curtas
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Você é um especialista em controle de qualidade. Para o checklist "${checklistTitle}", o item "${itemText}" foi marcado como não conforme. Forneça 3 sugestões de ações corretivas curtas e diretas. Use apenas texto com marcadores.`,
-    });
-
-    return response.text || "Nenhuma sugestão gerada.";
+    const prompt = `Você é um especialista em controle de qualidade. Para o checklist "${checklistTitle}", o item "${itemText}" foi marcado como não conforme. Forneça exatamente 3 sugestões de ações corretivas curtas e diretas. Use apenas texto com marcadores simples.`;
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    return text || "Nenhuma sugestão gerada pelo modelo.";
   } catch (error) {
     console.error("Erro ao chamar Gemini API:", error);
-    return "Não foi possível obter sugestões no momento. Verifique sua conexão e a validade da chave API.";
+    return "Não foi possível obter sugestões no momento. Verifique se a chave na Vercel é válida.";
   }
 };
